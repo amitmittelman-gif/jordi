@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Presentation</title>
+  <script src="https://www.youtube.com/iframe_api"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -113,6 +114,37 @@
       pointer-events: none;
       z-index: 10;
       white-space: nowrap;
+    }
+
+    /* ── Next button (appears when video ends) ── */
+    .next-btn {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #fff;
+      color: #222;
+      border: none;
+      padding: 14px 40px;
+      font-size: 20px;
+      font-weight: 700;
+      border-radius: 40px;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      z-index: 20;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+      letter-spacing: 0.02em;
+    }
+
+    .next-btn.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .next-btn:hover {
+      background: #f0f0f0;
     }
 
     /* ── Photo progress bar (top of screen) ── */
@@ -503,11 +535,10 @@ SLIDES.forEach((slide, i) => {
     frame.className = 'video-frame';
 
     if (slide.youtube && slide.youtube !== 'YOUTUBE_ID_HERE') {
-      const iframe = document.createElement('iframe');
-      iframe.dataset.ytSrc = `https://www.youtube.com/embed/${slide.youtube}?rel=0`;
-      iframe.allowFullscreen = true;
-      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-      frame.appendChild(iframe);
+      const target = document.createElement('div');
+      target.id = `yt-target-${i}`;
+      target.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+      frame.appendChild(target);
     } else {
       frame.appendChild(makePlaceholder(slide.label || 'Video', 'Set youtube ID in SLIDES config', '#111', '#555'));
     }
@@ -516,6 +547,13 @@ SLIDES.forEach((slide, i) => {
     hint.className = 'video-nav-hint';
     hint.textContent = 'Press → or click outside the video to continue';
     frame.appendChild(hint);
+
+    const btn = document.createElement('button');
+    btn.className = 'next-btn';
+    btn.textContent = 'Next ›';
+    btn.addEventListener('click', e => { e.stopPropagation(); navigate(1); });
+    frame.appendChild(btn);
+
     el.appendChild(frame);
     el.addEventListener('click', () => navigate(1));
   }
@@ -603,15 +641,45 @@ function animateProgress(duration) {
   });
 }
 
-// ── Video loading ──────────────────────────────────────────────────
+// ── YouTube IFrame API ─────────────────────────────────────────────
+let ytApiReady = false;
+const ytPlayers = {};
+
+window.onYouTubeIframeAPIReady = function() {
+  ytApiReady = true;
+  if (SLIDES[current]?.type === 'video') loadVideo(current);
+};
+
 function loadVideo(i) {
-  const iframe = document.querySelector(`#slide-${i} iframe[data-yt-src]`);
-  if (iframe) iframe.src = iframe.dataset.ytSrc;
+  const slide = SLIDES[i];
+  if (!slide.youtube || slide.youtube === 'YOUTUBE_ID_HERE') return;
+  if (!ytApiReady) return;
+
+  if (ytPlayers[i]) {
+    ytPlayers[i].playVideo();
+    return;
+  }
+
+  ytPlayers[i] = new YT.Player(`yt-target-${i}`, {
+    width: '100%',
+    height: '100%',
+    videoId: slide.youtube,
+    playerVars: { rel: 0, modestbranding: 1 },
+    events: {
+      onStateChange(e) {
+        if (e.data === YT.PlayerState.ENDED) {
+          const btn = document.querySelector(`#slide-${i} .next-btn`);
+          if (btn) btn.classList.add('visible');
+        }
+      }
+    }
+  });
 }
 
 function unloadVideo(i) {
-  const iframe = document.querySelector(`#slide-${i} iframe[data-yt-src]`);
-  if (iframe) iframe.src = '';
+  const btn = document.querySelector(`#slide-${i} .next-btn`);
+  if (btn) btn.classList.remove('visible');
+  if (ytPlayers[i]?.pauseVideo) ytPlayers[i].pauseVideo();
 }
 
 // ── Keyboard ───────────────────────────────────────────────────────
