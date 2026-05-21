@@ -197,6 +197,35 @@
       pointer-events: none;
       font-variant-numeric: tabular-nums;
     }
+
+    /* ── Fullscreen button ── */
+    #fullscreen-btn {
+      position: fixed;
+      top: 12px;
+      right: 14px;
+      z-index: 300;
+      background: rgba(0,0,0,0.18);
+      border: none;
+      border-radius: 8px;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.25s ease, background 0.2s ease;
+    }
+
+    #fullscreen-btn:hover { background: rgba(0,0,0,0.38); }
+
+    body:not(:fullscreen) #stage:hover ~ #fullscreen-btn,
+    #fullscreen-btn:hover { opacity: 1; }
+
+    /* show button when not in fullscreen and mouse moves anywhere */
+    body.show-fs-btn #fullscreen-btn { opacity: 1; }
+
+    #fullscreen-btn svg { width: 18px; height: 18px; fill: #fff; }
   </style>
 </head>
 <body>
@@ -205,6 +234,10 @@
 <div id="photo-progress"></div>
 <div id="nav-dots"></div>
 <div id="counter"></div>
+<button id="fullscreen-btn" title="Full screen (F)">
+  <svg id="fs-icon-enter" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zM3 15h2v4h4v2H3v-6zm16 4h-4v2h6v-6h-2v4z"/></svg>
+  <svg id="fs-icon-exit"  viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M5 9H3V3h6v2H5v4zm10-4V3h6v6h-2V5h-4zm4 10h2v6h-6v-2h4v-4zM9 19v2H3v-6h2v4h4z"/></svg>
+</button>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -690,6 +723,37 @@ function unloadVideo(i) {
   if (ytPlayers[i]?.pauseVideo) ytPlayers[i].pauseVideo();
 }
 
+// ── Fullscreen ─────────────────────────────────────────────────────
+const fsBtn       = document.getElementById('fullscreen-btn');
+const fsIconEnter = document.getElementById('fs-icon-enter');
+const fsIconExit  = document.getElementById('fs-icon-exit');
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+function updateFsIcon() {
+  const inFs = !!document.fullscreenElement;
+  fsIconEnter.style.display = inFs ? 'none'  : '';
+  fsIconExit.style.display  = inFs ? ''      : 'none';
+}
+
+fsBtn.addEventListener('click', e => { e.stopPropagation(); toggleFullscreen(); });
+document.addEventListener('fullscreenchange', updateFsIcon);
+
+// Show button briefly on mouse move when not in fullscreen
+let fsHideTimer;
+document.addEventListener('mousemove', () => {
+  if (document.fullscreenElement) return;
+  document.body.classList.add('show-fs-btn');
+  clearTimeout(fsHideTimer);
+  fsHideTimer = setTimeout(() => document.body.classList.remove('show-fs-btn'), 2500);
+});
+
 // ── Keyboard ───────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   const fwd = ['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'];
@@ -698,6 +762,7 @@ document.addEventListener('keydown', e => {
   if (bwd.includes(e.key)) { e.preventDefault(); navigate(-1); }
   if (e.key === 'Home')    { e.preventDefault(); goTo(0); }
   if (e.key === 'End')     { e.preventDefault(); goTo(SLIDES.length - 1); }
+  if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFullscreen(); }
 });
 
 // ── Init ───────────────────────────────────────────────────────────
